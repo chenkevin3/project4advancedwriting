@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>When autopilot fails</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #f7f7f5;
+      color: #111;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .page {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 500;
+      color: #111;
+      margin-bottom: 6px;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #999;
+      text-align: center;
+      margin-bottom: 1rem;
+      margin-top: 1rem;
+      transition: opacity 0.3s;
+    }
+
+    .grid-wrapper {
+      position: relative;
+      border-radius: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .card-wrap {
+      cursor: pointer;
+      perspective: 800px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.5s ease;
+      border-radius: 12px;
+    }
+
+    .card-wrap.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 12px;
+      border: 0.5px solid #e0e0d8;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-front { background: #efefeb; }
+
+    .card-back {
+      background: #fff;
+      transform: rotateY(180deg);
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    .card-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .card-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #111;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .card-tap {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 6px;
+    }
+
+    .card-tag {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+
+    .card-fact {
+      font-size: 11px;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .spacer {
+      visibility: hidden;
+      padding: 16px;
+      font-size: 11px;
+      line-height: 1.6;
+      pointer-events: none;
+    }
+
+    .flip-all-btn {
+      display: none;
+      margin: 1.5rem auto 0;
+      padding: 8px 20px;
+      font-size: 13px;
+      border: 0.5px solid #ccc;
+      border-radius: 8px;
+      background: transparent;
+      color: #444;
+      cursor: pointer;
+    }
+
+    .flip-all-btn:hover { background: #f0f0ec; }
+
+    .footer {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 0.5px solid #e0e0d8;
+      font-size: 12px;
+      color: #999;
+      line-height: 1.7;
+    }
+
+    /* ---- CAPTCHA COVER ---- */
+    #cover {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(247, 247, 245, 0.97);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: opacity 0.4s ease;
+    }
+
+    #cover.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .captcha-box {
+      background: #fff;
+      border: 1px solid #d3d3d3;
+      border-radius: 4px;
+      width: 300px;
+      padding: 16px 16px 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .captcha-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .captcha-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+    }
+
+    .checkbox-wrap {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #c1c1c1;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.2s, background 0.2s;
+      background: #fff;
+    }
+
+    .captcha-left:hover .checkbox-wrap { border-color: #4a90d9; }
+
+    .checkbox-wrap.checked {
+      border-color: #4a90d9;
+      background: #4a90d9;
+    }
+
+    .checkmark { display: none; width: 14px; height: 14px; }
+    .checkbox-wrap.checked .checkmark { display: block; }
+
+    .captcha-text {
+      font-size: 14px;
+      color: #333;
+      font-family: Roboto, Arial, sans-serif;
+      user-select: none;
+    }
+
+    .captcha-logo-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .captcha-logo { width: 32px; height: 32px; }
+
+    .captcha-brand {
+      font-size: 8px;
+      color: #999;
+      font-family: Roboto, Arial, sans-serif;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .spinner {
+      display: none;
+      width: 24px;
+      height: 24px;
+      border: 2px solid #e8e8e8;
+      border-top-color: #4a90d9;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .spinner.visible { display: block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .captcha-footer {
+      border-top: 1px solid #ebebeb;
+      padding-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .captcha-footer-text {
+      font-size: 9px;
+      color: #bbb;
+      font-family: Roboto, Arial, sans-serif;
+      line-height: 1.4;
+    }
+
+    .captcha-footer-links { display: flex; gap: 8px; }
+
+    .captcha-footer-links a {
+      font-size: 9px;
+      color: #bbb;
+      text-decoration: none;
+      font-family: Roboto, Arial, sans-serif;
+    }
+
+    .captcha-footer-links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <div class="header">
+      <h1>When autopilot fails</h1>
+      <p>Semi-autonomous vehicles can't handle every road condition — and drivers often don't realize it. Verify below, then click each card to learn why.</p>
+    </div>
+
+    <div class="grid-wrapper">
+
+      <div id="cover">
+        <div class="captcha-box">
+          <div class="captcha-main">
+            <div class="captcha-left" onclick="handleCheck()">
+              <div class="checkbox-wrap" id="checkbox">
+                <svg class="checkmark" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 7L5.5 10.5L12 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="captcha-text">I am not a robot</span>
+            </div>
+            <div id="spinner" class="spinner"></div>
+            <div class="captcha-logo-area" id="logo-area">
+              <svg class="captcha-logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="28" fill="#4a90d9" opacity="0.12"/>
+                <path d="M32 10 C19 10 10 19 10 32 C10 45 19 54 32 54 C45 54 54 45 54 32" stroke="#4a90d9" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+                <path d="M54 32 C54 25 50 18 44 14" stroke="#4a90d9" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+                <circle cx="32" cy="32" r="7" fill="#4a90d9" opacity="0.4"/>
+              </svg>
+              <div class="captcha-brand">reCAPTCHA<br>Privacy · Terms</div>
+            </div>
+          </div>
+          <div class="captcha-footer">
+            <div class="captcha-footer-text">Protected by reCAPTCHA<br>Google LLC</div>
+            <div class="captcha-footer-links">
+              <a href="#">Privacy</a>
+              <a href="#">Terms</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+    </div>
+
+    <p class="hint" id="hint" style="opacity:0;">Click any card to reveal the fact</p>
+    <button class="flip-all-btn" id="flip-all">Reveal all</button>
+
+    <div class="footer">
+      Sources: NHTSA Tesla Autopilot Investigation (2022) · Tian et al., DeepTest, arXiv (2017) · IEEE Code of Ethics (2020) · Google SRE Postmortem Culture (2016)
+    </div>
+  </div>
+
+  <script>
+    const cards = [
+      { icon:"🌫️", label:"Fog & rain", tag:"Perception", tagBg:"#ddeeff", tagColor:"#1a4f8a",
+        fact:"Cameras lose effective range rapidly in fog and rain. Neural networks trained on clear-weather footage misclassify or miss objects entirely when visibility drops." },
+      { icon:"☀️", label:"Glare & light", tag:"Perception", tagBg:"#fef3dc", tagColor:"#7a4a00",
+        fact:"Direct sun or sudden light transitions — like exiting a tunnel — can saturate camera sensors for a fraction of a second, enough to miss a braking vehicle ahead." },
+      { icon:"🚒", label:"Stopped emergency vehicles", tag:"Detection", tagBg:"#fde8e8", tagColor:"#8a1f1f",
+        fact:"NHTSA investigations found Autopilot repeatedly failed to brake for stopped emergency vehicles. Without active lights, they don't match the system's threat patterns." },
+      { icon:"❄️", label:"Low contrast scenes", tag:"Perception", tagBg:"#ddeeff", tagColor:"#1a4f8a",
+        fact:"Cameras rely on contrast to separate objects from background. White cars on snow and gray vans in fog collapse that contrast — radar and lidar are unaffected." },
+      { icon:"🪨", label:"Road debris", tag:"Detection", tagBg:"#fde8e8", tagColor:"#8a1f1f",
+        fact:"Flat or low-profile objects lack the vertical silhouette camera models use to identify obstacles. Debris is often classified as shadows or road texture." },
+      { icon:"🧠", label:"How neural nets work", tag:"Technology", tagBg:"#eeedfb", tagColor:"#3c3489",
+        fact:"DeepTest (2017) showed small changes in lighting or weather cause neural networks to misclassify objects. The system pattern-matches — it doesn't reason." },
+      { icon:"😴", label:"Driver complacency", tag:"Human factors", tagBg:"#fce8f0", tagColor:"#72243e",
+        fact:"Research shows the longer someone supervises automation, the less actively they monitor it. This is predictable and preventable — but only if the system is designed for it." },
+      { icon:"🏷️", label:"Misleading names", tag:"Design", tagBg:"#fef3dc", tagColor:"#7a4a00",
+        fact:"\"Autopilot\" and \"Full Self-Driving\" imply capability the technology doesn't have. The IEEE Code of Ethics requires engineers to communicate system limitations honestly." },
+      { icon:"📡", label:"Sensor redundancy", tag:"Solution", tagBg:"#e6f5e0", tagColor:"#27500a",
+        fact:"Combining cameras, radar, and lidar means each sensor covers the others' blind spots. This mirrors fault-tolerance practices used in aviation and other safety-critical fields." }
+    ];
+
+    const grid = document.getElementById('grid');
+    const flipAllBtn = document.getElementById('flip-all');
+    const hint = document.getElementById('hint');
+    let allFlipped = false;
+
+    cards.forEach(c => {
+      const wrap = document.createElement('div');
+      wrap.className = 'card-wrap';
+
+      const inner = document.createElement('div');
+      inner.className = 'card-inner';
+
+      const front = document.createElement('div');
+      front.className = 'card-face card-front';
+      front.innerHTML = `<span class="card-icon">${c.icon}</span><span class="card-label">${c.label}</span><span class="card-tap">tap to reveal</span>`;
+
+      const back = document.createElement('div');
+      back.className = 'card-face card-back';
+      back.innerHTML = `<span class="card-tag" style="background:${c.tagBg};color:${c.tagColor};">${c.tag}</span><p class="card-fact">${c.fact}</p>`;
+
+      const spacer = document.createElement('div');
+      spacer.className = 'spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      spacer.innerHTML = `<span style="font-size:10px;">&nbsp;</span><p style="font-size:11px;line-height:1.6;">${c.fact}</p>`;
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      wrap.appendChild(inner);
+      wrap.appendChild(spacer);
+      wrap.addEventListener('click', () => wrap.classList.toggle('flipped'));
+      grid.appendChild(wrap);
+    });
+
+    flipAllBtn.addEventListener('click', () => {
+      allFlipped = !allFlipped;
+      document.querySelectorAll('.card-wrap').forEach(w => {
+        allFlipped ? w.classList.add('flipped') : w.classList.remove('flipped');
+      });
+      flipAllBtn.textContent = allFlipped ? 'Hide all' : 'Reveal all';
+    });
+
+    function handleCheck() {
+      const cb = document.getElementById('checkbox');
+      if (cb.classList.contains('checked')) return;
+
+      const spinner = document.getElementById('spinner');
+      const logoArea = document.getElementById('logo-area');
+
+      logoArea.style.display = 'none';
+      spinner.classList.add('visible');
+
+      setTimeout(() => {
+        spinner.classList.remove('visible');
+        logoArea.style.display = 'flex';
+        cb.classList.add('checked');
+
+        setTimeout(() => {
+          const cover = document.getElementById('cover');
+          cover.classList.add('hidden');
+          hint.style.opacity = '1';
+          flipAllBtn.style.display = 'block';
+          setTimeout(() => cover.remove(), 450);
+        }, 700);
+      }, 1200);
+    }
+  </script>
+</body>
+</html>
